@@ -44,7 +44,26 @@ uint8_t font[] = {
 };
 
 uint8_t program[] = {
-  0x61, 0xFF, 0x12, 0x00,
+  0x61, 0x00, 0x71, 0x01, 0x12, 0x02,
+};
+
+int keys[] = {
+  KEY_ZERO,
+  KEY_ONE,
+  KEY_TWO,
+  KEY_THREE,
+  KEY_Q,
+  KEY_W,
+  KEY_E,
+  KEY_A,
+  KEY_S,
+  KEY_D,
+  KEY_Z,
+  KEY_C,
+  KEY_FOUR,
+  KEY_R,
+  KEY_F,
+  KEY_V,
 };
 
 struct Chip8
@@ -76,20 +95,20 @@ int main(void)
   memory_set(cpu.memory, font, 4096, 80, 80);
 
   // Load program
-  FILE *fd = fopen("test_opcode.ch8", "r");
+  FILE *fd = fopen("ibm.ch8", "r");
   if (fd == NULL) {
     printf("cannot find file\n");
     exit(1);
   }
   uint8_t buf[BUFSIZ];
   size_t buf_length = fread(buf, sizeof(uint8_t), BUFSIZE, fd);
-  convert_to_big_ed(buf, buf_length);
+  //convert_to_big_ed(buf, buf_length);
   memory_set(cpu.memory, buf, 4096, buf_length, 512);
 
   // Set program counter to start of the program
   cpu.pc = 512;
 
-  //memory_set(cpu.memory, program, 4096, 4, 512);
+  //memory_set(cpu.memory, program, 4096, 6, 512);
 
   InitWindow(BOUNDS_X, BOUNDS_Y, "Chip 8");
 
@@ -99,18 +118,11 @@ int main(void)
 
   size_t count = 0;
 
+
+
+  bool should_draw = false;
   while (!WindowShouldClose())
   {
-    // BeginDrawing();
-    // ClearBackground(RAYWHITE);
-    //
-    // draw_font(0, 0, 2);
-    // draw_font(5, 0, 2);
-    // draw_font(10, 0, 3);
-    //
-    // EndDrawing();
-    //
-    //
     uint16_t instruction = cpu.memory[cpu.pc] << 8 | cpu.memory[cpu.pc + 1];
 
     cpu.pc += 2;
@@ -131,9 +143,12 @@ int main(void)
         {
           // 00E0 - CLS
           // Clear the display
-          BeginDrawing();
-          ClearBackground(BLACK);
-          EndDrawing();
+          for (int i = 0; i < CHIP8_HEIGHT; i++) {
+            cpu.display[i] = 0;
+          }
+
+          should_draw = true;
+
           break;
         }
         case 0xEE:
@@ -379,8 +394,6 @@ int main(void)
         // Dxyn - DRW Vx, Vy, nibble
         // Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
         // The interpreter reads n bytes from memory, starting at the address stored in I. These bytes are then displayed as sprites on screen at coordinates (Vx, Vy). Sprites are XORed onto the existing screen. If this causes any pixels to be erased, VF is set to 1, otherwise it is set to 0. If the sprite is positioned so part of it is outside the coordinates of the display, it wraps around to the opposite side of the screen. See instruction 8xy3 for more information on XOR, and section 2.4, Display, for more information on the Chip-8 screen and sprites.
-        printf("displaying!\n");
-
         cpu.registers[0xF] = 0;
 
         for (size_t i = 0; i < n; i++) {
@@ -400,7 +413,7 @@ int main(void)
           }
         }
 
-        draw_chip_display(cpu.display);
+        should_draw = true;
         
         break;
       }
@@ -413,7 +426,15 @@ int main(void)
             // Ex9E - SKP Vx
             // Skip next instruction if key with the value of Vx is pressed.
             // Checks the keyboard, and if the key corresponding to the value of Vx is currently in the down position, PC is increased by 2.
-            printf("0x9E not implemented yet\n");
+            if (cpu.registers[x] > 0xF) {
+              printf("not a valid key!\n");
+              exit(1);
+            }
+
+            if (IsKeyDown(keys[cpu.registers[x]])) {
+              cpu.pc += 2;
+            }
+
             break;
           }
           case 0xA1:
@@ -421,7 +442,15 @@ int main(void)
             // ExA1 - SKNP Vx
             // Skip next instruction if key with the value of Vx is not pressed.
             // Checks the keyboard, and if the key corresponding to the value of Vx is currently in the up position, PC is increased by 2.
-            printf("0xA1 not implemented yet\n");
+            if (cpu.registers[x] > 0xF) {
+              printf("not a valid key!\n");
+              exit(1);
+            }
+
+            if (!IsKeyDown(keys[cpu.registers[x]])) {
+              cpu.pc += 2;
+            }
+
             break;
           }
         }
@@ -436,7 +465,7 @@ int main(void)
           // Fx07 - LD Vx, DT
           // Set Vx = delay timer value.
           // The value of DT is placed into Vx.
-          printf("not implemented yet");
+          cpu.registers[x] = cpu.timer;
           break;
         }
         case 0x0A:
@@ -444,7 +473,19 @@ int main(void)
           // Fx0A - LD Vx, K
           // Wait for a key press, store the value of the key in Vx.
           // All execution stops until a key is pressed, then the value of that key is stored in Vx.
-          printf("not implemented yet");
+          bool key_pressed = false;
+          for (size_t i = 0; i < 16; i++) {
+            if (IsKeyDown(keys[i])) {
+              cpu.registers[x] = i;
+              key_pressed = true;
+            }
+          }
+
+          if (!key_pressed) {
+            // Go back an instruction if a key is not pressed
+            cpu.pc -= 2;
+          }
+
           break;
         }
         case 0x15:
@@ -452,7 +493,7 @@ int main(void)
           // Fx15 - LD DT, Vx
           // Set delay timer = Vx.
           // DT is set equal to the value of Vx.
-          printf("not implemented yet");
+          cpu.timer = cpu.registers[x];
           break;
         }
         case 0x18:
@@ -460,7 +501,7 @@ int main(void)
           // Fx18 - LD ST, Vx
           // Set sound timer = Vx.
           // ST is set equal to the value of Vx.
-          printf("not implemented yet");
+          cpu.sound = cpu.registers[x];
           break;
         }
         case 0x1E:
@@ -468,7 +509,7 @@ int main(void)
           // Fx1E - ADD I, Vx
           // Set I = I + Vx.
           // The values of I and Vx are added, and the results are stored in I.
-          printf("not implemented yet");
+          cpu.i_register += cpu.registers[x];
           break;
         }
         case 0x29:
@@ -476,7 +517,7 @@ int main(void)
           // Fx29 - LD F, Vx
           // Set I = location of sprite for digit Vx.
           // The value of I is set to the location for the hexadecimal sprite corresponding to the value of Vx. See section 2.4, Display, for more information on the Chip-8 hexadecimal font.
-          printf("not implemented yet");
+          cpu.i_register = cpu.registers[x];
           break;
         }
         case 0x33:
@@ -484,7 +525,9 @@ int main(void)
           // Fx33 - LD B, Vx
           // Store BCD representation of Vx in memory locations I, I+1, and I+2.
           // The interpreter takes the decimal value of Vx, and places the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2.
-          printf("not implemented yet");
+          cpu.memory[cpu.i_register + 2] = cpu.registers[x] % 10;
+          cpu.memory[cpu.i_register + 1] = (cpu.registers[x] / 10) % 10;
+          cpu.memory[cpu.i_register] = (cpu.registers[x] / 100) % 10;
           break;
         }
         case 0x55:
@@ -520,6 +563,14 @@ int main(void)
     } else {
       cpu.sound--;
     } 
+
+    // if (should_draw) {
+    //   printf("drawing!!\n");
+    //   draw_chip_display(cpu.display);
+    //   should_draw = false;
+    // }
+
+    draw_chip_display(cpu.display);
 
     sleep(0.01667);
   }
@@ -602,13 +653,15 @@ void convert_to_big_ed(uint8_t *data, size_t d_length) {
 void draw_chip_display(uint64_t display[CHIP8_HEIGHT]) {
   BeginDrawing();
 
-  for (size_t y; y < CHIP8_HEIGHT; y++) {
-    for (size_t x; x < CHIP8_WIDTH; x++) {
+  ClearBackground(BLACK);
+
+  for (size_t y = 0; y < CHIP8_HEIGHT; y++) {
+    for (size_t x = 0; x < CHIP8_WIDTH; x++) {
       uint64_t on = (display[y] >> x) & 0x1;
       if (on) {
-        draw_pixel(x, y, BLACK); 
-      } else {
         draw_pixel(x, y, RAYWHITE); 
+      } else {
+        draw_pixel(x, y, BLACK); 
       }
     }
   }
