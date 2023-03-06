@@ -43,6 +43,10 @@ uint8_t font[] = {
     0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 };
 
+uint8_t program[] = {
+  0x61, 0xFF, 0x12, 0x00,
+};
+
 struct Chip8
 {
   uint8_t memory[4096];
@@ -85,11 +89,15 @@ int main(void)
   // Set program counter to start of the program
   cpu.pc = 512;
 
+  //memory_set(cpu.memory, program, 4096, 4, 512);
+
   InitWindow(BOUNDS_X, BOUNDS_Y, "Chip 8");
 
   BeginDrawing();
   ClearBackground(BLACK);
   EndDrawing();
+
+  size_t count = 0;
 
   while (!WindowShouldClose())
   {
@@ -111,7 +119,7 @@ int main(void)
     size_t y = get_hex(instruction, 1);
     uint8_t n = get_hex(instruction, 0); 
     uint8_t nn = instruction & 0xFF;
-    uint8_t nnn = instruction & 0xFFF;
+    uint16_t nnn = instruction & 0xFFF;
 
     switch (get_hex(instruction, 3))
     {
@@ -159,6 +167,7 @@ int main(void)
         // Jump to location nnn.
         // The interpreter sets the program counter to nnn.
         cpu.pc = nnn;
+        //printf("Jumping to %04x\n", nnn);
         break;
       }
       case 0x2:
@@ -187,7 +196,7 @@ int main(void)
         // 4xkk - SNE Vx, byte
         // Skip next instruction if Vx != kk.
         // The interpreter compares register Vx to kk, and if they are not equal, increments the program counter by 2.
-        if (cpu.registers[x] != (instruction & 0xFF))
+        if (cpu.registers[x] != nn)
         {
           cpu.pc += 2;
         };
@@ -399,24 +408,23 @@ int main(void)
       {
         switch (nn)
         {
-        case 0x9E:
-        {
-          // Ex9E - SKP Vx
-          // Skip next instruction if key with the value of Vx is pressed.
-          // Checks the keyboard, and if the key corresponding to the value of Vx is currently in the down position, PC is increased by 2.
-          printf("0x9E not implemented yet\n");
-          break;
+          case 0x9E:
+          {
+            // Ex9E - SKP Vx
+            // Skip next instruction if key with the value of Vx is pressed.
+            // Checks the keyboard, and if the key corresponding to the value of Vx is currently in the down position, PC is increased by 2.
+            printf("0x9E not implemented yet\n");
+            break;
+          }
+          case 0xA1:
+          {
+            // ExA1 - SKNP Vx
+            // Skip next instruction if key with the value of Vx is not pressed.
+            // Checks the keyboard, and if the key corresponding to the value of Vx is currently in the up position, PC is increased by 2.
+            printf("0xA1 not implemented yet\n");
+            break;
+          }
         }
-        case 0xA1:
-        {
-          // ExA1 - SKNP Vx
-          // Skip next instruction if key with the value of Vx is not pressed.
-          // Checks the keyboard, and if the key corresponding to the value of Vx is currently in the up position, PC is increased by 2.
-          printf("0xA1 not implemented yet\n");
-          break;
-        }
-        }
-        //printf("lol\n");
         break;
       }
       case 0xF:
