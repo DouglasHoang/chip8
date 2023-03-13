@@ -22,7 +22,7 @@ void draw_pixel(int x, int y, Color color);
 void draw_font(int x, int y, int letter);
 void memory_set(uint8_t *memory, uint8_t *data, size_t m_length, size_t d_length, size_t offset);
 void convert_to_big_ed(uint8_t *data, size_t d_length);
-void draw_chip_display(uint64_t display[CHIP8_HEIGHT]);
+void draw_chip_display(bool display[CHIP8_HEIGHT][CHIP8_WIDTH]);
 
 uint8_t font[] = {
     0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -75,7 +75,7 @@ struct Chip8
   uint16_t pc;
   size_t sp;
 
-  uint64_t display[CHIP8_HEIGHT];
+  bool display[CHIP8_HEIGHT][CHIP8_WIDTH];
 
   uint8_t timer;
   uint8_t sound;
@@ -142,7 +142,9 @@ int main(void)
           // 00E0 - CLS
           // Clear the display
           for (int i = 0; i < CHIP8_HEIGHT; i++) {
-            cpu.display[i] = 0;
+            for (int j = 0; j < CHIP8_HEIGHT; j++) {
+              cpu.display[i][j] = false;
+            }
           }
 
           should_draw = true;
@@ -400,16 +402,18 @@ int main(void)
 
           for (size_t j = 0; j < 8; j++) {
             uint8_t x_idx = (cpu.registers[x] + j) % 64;
-            uint8_t sprite_bit = (sprite_data >> (j)) & 0x1;
+            uint8_t sprite_bit = (sprite_data >> (7 - j)) & 0x1;
 
             //printf("x: %d, y: %d, on: %d\n", x_idx, y_idx, sprite_bit);
 
-            if ((cpu.display[y_idx] >> x_idx & 0x1) == 1 && sprite_bit == 1) {
+            if (cpu.display[y_idx][x_idx] && sprite_bit == 1) {
               cpu.registers[0xF] = 1;
-              printf("I am ran in here\n");
+              cpu.display[y_idx][x_idx] = false;
+            } else if (sprite_bit == 1) {
+              cpu.display[y_idx][x_idx] = true;
+            } else {
+              cpu.display[y_idx][x_idx] = false;
             }
-
-            cpu.display[y_idx] = cpu.display[y_idx] ^ (sprite_bit << x_idx);
           }
         }
 
@@ -567,10 +571,9 @@ int main(void)
     if (should_draw) {
       printf("drawing!!\n");
       draw_chip_display(cpu.display);
+
       should_draw = false;
     }
-
-    //draw_chip_display(cpu.display);
 
     sleep(0.01667);
   }
@@ -599,7 +602,7 @@ void draw_pixel(int x, int y, Color color)
 
       if (x < BOUNDS_X && y < BOUNDS_Y)
       {
-        DrawPixel(start_x + i, start_y + j, color);
+        DrawPixel(x, y, color);
       }
     }
   }
@@ -650,15 +653,14 @@ void convert_to_big_ed(uint8_t *data, size_t d_length) {
   }
 }
 
-void draw_chip_display(uint64_t display[CHIP8_HEIGHT]) {
+void draw_chip_display(bool display[CHIP8_HEIGHT][CHIP8_WIDTH]) {
   BeginDrawing();
 
   ClearBackground(BLACK);
 
   for (size_t y = 0; y < CHIP8_HEIGHT; y++) {
     for (size_t x = 0; x < CHIP8_WIDTH; x++) {
-      uint64_t on = (display[y] >> x) & 0x1;
-      if (on) {
+      if (display[y][x]) {
         draw_pixel(x, y, RAYWHITE); 
       } else {
         draw_pixel(x, y, BLACK); 
