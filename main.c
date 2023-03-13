@@ -118,8 +118,6 @@ int main(void)
 
   size_t count = 0;
 
-
-
   bool should_draw = false;
   while (!WindowShouldClose())
   {
@@ -397,19 +395,21 @@ int main(void)
         cpu.registers[0xF] = 0;
 
         for (size_t i = 0; i < n; i++) {
-          uint8_t y_idx = (cpu.registers[y] + 1) % 31;
-
+          uint8_t y_idx = (cpu.registers[y] + i) % 32;
           uint8_t sprite_data = cpu.memory[cpu.i_register + i];
 
-          for (size_t j = 0; j < 4; j++) {
-            uint8_t x_idx = cpu.registers[x + j] % 63;
-            uint8_t sprite_bit = (sprite_data >> j) & 0x1;
+          for (size_t j = 0; j < 8; j++) {
+            uint8_t x_idx = (cpu.registers[x] + j) % 64;
+            uint8_t sprite_bit = (sprite_data >> (j)) & 0x1;
 
-            if ((cpu.display[y_idx] >> x_idx & 0x1) == 1) {
+            //printf("x: %d, y: %d, on: %d\n", x_idx, y_idx, sprite_bit);
+
+            if ((cpu.display[y_idx] >> x_idx & 0x1) == 1 && sprite_bit == 1) {
               cpu.registers[0xF] = 1;
+              printf("I am ran in here\n");
             }
 
-            cpu.display[y_idx] = cpu.display[y_idx] ^ (1 << x_idx);
+            cpu.display[y_idx] = cpu.display[y_idx] ^ (sprite_bit << x_idx);
           }
         }
 
@@ -564,13 +564,13 @@ int main(void)
       cpu.sound--;
     } 
 
-    // if (should_draw) {
-    //   printf("drawing!!\n");
-    //   draw_chip_display(cpu.display);
-    //   should_draw = false;
-    // }
+    if (should_draw) {
+      printf("drawing!!\n");
+      draw_chip_display(cpu.display);
+      should_draw = false;
+    }
 
-    draw_chip_display(cpu.display);
+    //draw_chip_display(cpu.display);
 
     sleep(0.01667);
   }
